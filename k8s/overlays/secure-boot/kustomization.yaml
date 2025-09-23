@@ -1,0 +1,67 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base configuration
+resources:
+  - ../../base
+
+# Namespace for all resources
+namespace: ${NAMESPACE}
+
+# Labels applied to all resources
+labels:
+  - pairs:
+      app.kubernetes.io/name: vastnfs-kmm
+      app.kubernetes.io/component: kernel-module
+      vastnfs.secure-boot: "enabled"
+
+# Patches for secure boot support
+patches:
+  # Add VASTNFS_VERSION build arg
+  - target:
+      kind: Module
+      name: vastnfs
+    patch: |-
+      - op: add
+        path: /spec/moduleLoader/container/kernelMappings/0/build/buildArgs
+        value:
+          - name: VASTNFS_VERSION
+            value: ${VASTNFS_VERSION}
+  
+  # Replace container image
+  - target:
+      kind: Module
+      name: vastnfs
+    patch: |-
+      - op: replace
+        path: /spec/moduleLoader/container/kernelMappings/0/containerImage
+        value: ${KMM_IMG}
+  
+  # Add signing configuration
+  - target:
+      kind: Module
+      name: vastnfs
+    patch: |-
+      - op: add
+        path: /spec/moduleLoader/container/kernelMappings/0/sign
+        value:
+          unsignedImage: ${KMM_IMG}
+          keySecret:
+            name: ${SIGNING_KEY_SECRET}
+          certSecret:
+            name: ${SIGNING_CERT_SECRET}
+          filesToSign:
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/net/sunrpc/sunrpc.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/net/sunrpc/xprtrdma/rpcrdma.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/net/sunrpc/auth_gss/auth_rpcgss.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/net/sunrpc/auth_gss/rpcsec_gss_krb5.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/fs/lockd/lockd.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/fs/nfs_common/nfs_acl.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/fs/nfs_common/compat_nfs_ssc.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/fs/nfs/nfs.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/fs/nfs/nfsv3.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/fs/nfs/nfsv4.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/fs/nfs/blocklayout/blocklayoutdriver.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/fs/nfs/filelayout/nfs_layout_nfsv41_files.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/fs/nfs/flexfilelayout/nfs_layout_flexfiles.ko
+            - /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/fs/nfsd/nfsd.ko

@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vastnfs-kmm-build-dockerfile
+data:
+  dockerfile: |
+    ARG DTK_AUTO
+    FROM ${DTK_AUTO} as builder
+    
+    ARG KERNEL_FULL_VERSION
+    ARG VASTNFS_VERSION
+    WORKDIR /usr/src
+    
+    # Install required build tools
+    RUN dnf install -y xz tar findutils rpm-build make gcc && dnf clean all
+    
+    # Download VAST NFS client source
+    RUN curl -sSf https://vast-nfs.s3.amazonaws.com/download.sh | bash -s -- --source --version ${VASTNFS_VERSION}
+    
+    # Extract and build VAST NFS with RPM installation
+    RUN tar -xf vastnfs-*.tar.xz && \
+        cd vastnfs-${VASTNFS_VERSION} && \
+        echo "=== Building VAST NFS with RPM installation ===" && \
+        echo "Available kernels in DTK:" && \
+        ls -la /lib/modules/ && \
+        echo "Available kernel build environments:" && \
+        find /lib/modules -name "build" -type l -exec ls -la {} \; 2>/dev/null || echo "No build symlinks found" && \
+        # Use the target kernel version for building
+        echo "Building for target kernel: ${KERNEL_FULL_VERSION}" && \
+        export KERNEL_SRC_DIR=/lib/modules/${KERNEL_FULL_VERSION}/build && \
+        # Build and install RPM to get proper file locations
+        ./build.sh bin --no-ofed && \
+        echo "=== Installing RPM to extract modules ===" && \
+        rpm -ivh dist/vastnfs-*.x86_64.rpm && \
+        echo "RPM installed successfully!" && \
+        echo "Verifying installed modules:" && \
+        find /lib/modules -name "*.ko" -path "*/extra/vastnfs/*" | head -10
+    
+    # Create final minimal image
+    FROM registry.redhat.io/ubi9/ubi-minimal:latest
+    ARG KERNEL_FULL_VERSION
+    ARG VASTNFS_VERSION
+    
+    RUN microdnf install -y kmod findutils && microdnf clean all
+    
+    RUN command -v cp >/dev/null && command -v kmod >/dev/null && command -v find >/dev/null && echo "Required utilities verified: cp, kmod, and find available"
+    
+    # Create the correct KMM directory structure: /opt/lib/modules/${KERNEL_VERSION}/
+    RUN mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}/ && \
+        mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}/utils/ && \
+        mkdir -p /etc/modprobe.d/
+    
+    # Copy kernel modules to KMM expected location: /opt/lib/modules/${KERNEL_VERSION}/
+    # Copy the VAST NFS enhanced modules from the bundle subdirectories
+    COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/extra/vastnfs/bundle/ /opt/lib/modules/${KERNEL_FULL_VERSION}/extra/
+    # Copy any kernel modules that might be dependencies
+    COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/kernel/ /opt/lib/modules/${KERNEL_FULL_VERSION}/kernel/
+    # Copy module dependency resolution files
+    COPY --from=builder /lib/modules/${KERNEL_FULL_VERSION}/modules.* /opt/lib/modules/${KERNEL_FULL_VERSION}/
+    
+    # Run depmod to generate proper module dependencies for the copied modules
+    RUN depmod -b /opt ${KERNEL_FULL_VERSION}
+    
+    # Verify what was copied
+    RUN echo "=== KMM directory structure ===" && \
+        ls -la /opt/lib/modules/ && \
+        echo "=== Kernel version directory ===" && \
+        ls -la /opt/lib/modules/${KERNEL_FULL_VERSION}/
+    
+    # Verification: List the final structure
+    RUN echo "=== Final KMM image structure ===" && \
+        ls -laR /opt/lib/modules/${KERNEL_FULL_VERSION}/ && \
+        echo "=== Module dependencies generated ===" && \
+        find /opt/lib/modules/${KERNEL_FULL_VERSION}/ -name "modules.*" -ls || echo "No modules.* files found"

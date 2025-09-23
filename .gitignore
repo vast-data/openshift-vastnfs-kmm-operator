@@ -1,0 +1,54 @@
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.bak
+*.backup
+
+# MOK keys and certificates (if regenerated)
+mok-*.priv
+mok-*.pem
+mok-*.der
+*.key
+*.crt
+*.cert
+
+# Build artifacts
+dist/
+build/
+*.rpm
+*.tar.gz
+*.tar.xz
+
+# OpenShift/Kubernetes temporary files
+*.kubeconfig
+kubeconfig*
+
+# Local development overrides
+local-*.yaml
+*-local.yaml
+override-*.yaml
+
+# Test files
+test-*
+*-test.yaml
+
+# venvs
+venv/
+/keys/

@@ -1,0 +1,33 @@
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vastnfs-kmm-sa
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vastnfs-kmm-privileged
+rules:
+- apiGroups: ["security.openshift.io"]
+  resources: ["securitycontextconstraints"]
+  verbs: ["use"]
+  resourceNames: ["privileged"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vastnfs-kmm-privileged-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vastnfs-kmm-privileged
+subjects:
+- kind: ServiceAccount
+  name: vastnfs-kmm-sa
+  namespace: ${NAMESPACE}

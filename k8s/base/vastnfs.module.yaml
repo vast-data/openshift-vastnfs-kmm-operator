@@ -1,0 +1,35 @@
+apiVersion: kmm.sigs.x-k8s.io/v1beta1
+kind: Module
+metadata:
+  name: vastnfs
+spec:
+  selector: {}  # Empty selector - deploys to all nodes
+  moduleLoader:
+    serviceAccountName: vastnfs-kmm-sa
+    container:
+      modprobe:
+        dirName: /opt
+        moduleName: sunrpc
+        modulesLoadingOrder:
+          - sunrpc
+          - rpcrdma
+          - compat_nfs_ssc
+          - lockd
+          - nfs_acl
+          - auth_rpcgss
+          - nfs
+          - nfsv3
+          - nfsv4
+        args:
+          unload: ["-v", "-r"]  # Verbose and recursive unloading
+      inTreeModulesToRemove:
+        - rpcrdma
+        - sunrpc
+      kernelMappings:
+        - regexp: '^.+$'
+          containerImage: placeholder
+          registryTLS:
+            insecureSkipTLSVerify: true
+          build:
+            dockerfileConfigMap:
+              name: vastnfs-kmm-build-dockerfile

@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - vastnfs-kmm-sa.yaml
+  - vastnfs-kmm-build-dockerfile.cm.yaml
+  - vastnfs.module.yaml
+
+patches:
+  - target:
+      kind: Module
+      name: vastnfs
+    patch: |-
+      - op: add
+        path: /spec/moduleLoader/container/kernelMappings/0/build/buildArgs
+        value:
+          - name: VASTNFS_VERSION
+            value: ${VASTNFS_VERSION}
+  - target:
+      kind: Module
+      name: vastnfs
+    patch: |-
+      - op: replace
+        path: /spec/moduleLoader/container/kernelMappings/0/containerImage
+        value: ${KMM_IMG}
+
+# Namespace for all resources
+namespace: ${NAMESPACE}
+
+# Labels applied to all resources
+labels:
+  - pairs:
+      app.kubernetes.io/name: vastnfs-kmm
+      app.kubernetes.io/component: kernel-module
