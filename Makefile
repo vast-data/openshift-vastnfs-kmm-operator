@@ -12,24 +12,43 @@ KMM_IMG_REPO ?= image-registry.openshift-image-registry.svc:5000/vastnfs-kmm/vas
 KMM_IMG_TAG ?= \$${KERNEL_FULL_VERSION}
 KMM_PULL_SECRET ?=
 
-# Kustomize binary location
-KUSTOMIZE ?= kustomize
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
 
-# Dynamic argument parsing for install commands
-ifeq (install, $(firstword $(MAKECMDGOALS)))
-  installargs := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
-  $(foreach arg,$(installargs),$(eval $(arg):;@true))
+## Tool Binaries
+KUSTOMIZE ?= $(LOCALBIN)/kustomize
+
+## Tool Versions
+KUSTOMIZE_VERSION ?= v5.4.3
+
+## Detect OS and architecture
+OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+ARCH := $(shell uname -m)
+
+# Map architecture names to Go/binary naming conventions
+ifeq ($(ARCH),x86_64)
+	ARCH := amd64
+endif
+ifeq ($(ARCH),aarch64)
+	ARCH := arm64
+endif
+ifeq ($(ARCH),arm64)
+	ARCH := arm64
+endif
+ifeq ($(ARCH),i386)
+	ARCH := 386
+endif
+ifeq ($(ARCH),i686)
+	ARCH := 386
 endif
 
-ifeq (install-secure-boot, $(firstword $(MAKECMDGOALS)))
-  installargs := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
-  $(foreach arg,$(installargs),$(eval $(arg):;@true))
+# Map OS names
+ifeq ($(OS),darwin)
+	OS := darwin
 endif
 
-ifeq (install-secure-boot-with-keys, $(firstword $(MAKECMDGOALS)))
-  installargs := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
-  $(foreach arg,$(installargs),$(eval $(arg):;@true))
-endif
 
 define check_required_env =
 	@if [ -n "$$CURRENT_TARGET" ]; then \
@@ -55,15 +74,14 @@ endef
 ######################
 # DEPENDENCIES
 ######################
-install-kustomize: ## Install kustomize if not present
-	@if ! command -v kustomize > /dev/null 2>&1; then \
-		echo "Installing kustomize..."; \
-		curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash; \
-		sudo mv kustomize /usr/local/bin/; \
-		echo "Kustomize installed successfully"; \
-	else \
-		echo "Kustomize is already installed: $$(kustomize version --short)"; \
-	fi
+.PHONY: kustomize
+kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
+$(KUSTOMIZE): $(LOCALBIN)
+	@echo "Installing kustomize $(KUSTOMIZE_VERSION) for $(OS)/$(ARCH) to $(LOCALBIN)..."
+	@mkdir -p $(LOCALBIN)
+	@curl -fsSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F$(KUSTOMIZE_VERSION)/kustomize_$(KUSTOMIZE_VERSION)_$(OS)_$(ARCH).tar.gz | tar -xzC $(LOCALBIN)
+	@chmod +x $(KUSTOMIZE)
+	@echo "Kustomize installed successfully: $(KUSTOMIZE)"
 
 ######################
 # NAMESPACE MANAGEMENT
@@ -79,7 +97,7 @@ create-namespace: ## Create namespace for VAST NFS KMM
 ######################
 # BUILD TARGETS
 ######################
-build-installer: install-kustomize ## Generate a consolidated YAML with CRDs and deployment
+build-installer: kustomize ## Generate a consolidated YAML with CRDs and deployment
 	@$(call check_required_env,VASTNFS_VERSION NAMESPACE)
 	@mkdir -p dist
 	@export VASTNFS_VERSION="$(VASTNFS_VERSION)"; \
@@ -98,30 +116,15 @@ build-installer: install-kustomize ## Generate a consolidated YAML with CRDs and
 ######################
 # INSTALLATION TARGETS
 ######################
-#   Install VAST NFS KMM on the cluster with optional wait functionality.
-#   Usage:
-#     make install                - Standard installation without waiting
-#     make install wait           - Install and wait for pods to start, then follow logs
-#
-#   The wait option will:
-#     1. Install the VAST NFS KMM module
-#     2. Wait for pods to start
-#     3. Follow pod logs in real-time
-#     4. Continue until interrupted
-#
-install: create-namespace ## Install VAST NFS KMM on the cluster with optional wait
+install: create-namespace kustomize ## Install VAST NFS KMM on the cluster with log monitoring
 	@$(call check_required_env,VASTNFS_VERSION NAMESPACE)
-	@wait_arg=$(word 1, $(installargs)); \
-	export VASTNFS_VERSION="$(VASTNFS_VERSION)"; \
+	@export VASTNFS_VERSION="$(VASTNFS_VERSION)"; \
 	export KMM_IMG="$(KMM_IMG_REPO):$(KMM_IMG_TAG)"; \
 	export NAMESPACE="$(NAMESPACE)"; \
 	export KMM_PULL_SECRET="$(KMM_PULL_SECRET)"; \
 	export KUSTOMIZE_DIR="$(KUSTOMIZE_DIR)"; \
-	if [ "$$wait_arg" = "wait" ]; then \
-		./scripts/install_and_follow_logs.sh --follow-logs; \
-	else \
-		./scripts/install_and_follow_logs.sh; \
-	fi
+	export KUSTOMIZE="$(KUSTOMIZE)"; \
+	./scripts/install_and_follow_logs.sh --follow-logs
 
 uninstall: ## Remove VAST NFS KMM from the cluster (handles finalizers)
 	@echo "Uninstalling VAST NFS KMM from namespace $(NAMESPACE)..."
@@ -144,35 +147,27 @@ uninstall: ## Remove VAST NFS KMM from the cluster (handles finalizers)
 ######################
 # SECURE BOOT TARGETS
 ######################
-install-secure-boot: ## Install VAST NFS KMM with secure boot support (add 'wait' to follow logs)
+install-secure-boot: kustomize ## Install VAST NFS KMM with secure boot support and log monitoring
 	@$(call check_required_env,VASTNFS_VERSION NAMESPACE)
-	@wait_arg=$(word 1, $(installargs)); \
-	export VASTNFS_VERSION="$(VASTNFS_VERSION)"; \
+	@export VASTNFS_VERSION="$(VASTNFS_VERSION)"; \
 	export KMM_IMG="$(KMM_IMG_REPO):$(KMM_IMG_TAG)"; \
 	export NAMESPACE="$(NAMESPACE)"; \
 	export KMM_PULL_SECRET="$(KMM_PULL_SECRET)"; \
 	export KUSTOMIZE_DIR="$(KUSTOMIZE_DIR)"; \
-	if [ "$$wait_arg" = "wait" ]; then \
-		./scripts/install_with_secure_boot.sh --follow-logs; \
-	else \
-		./scripts/install_with_secure_boot.sh; \
-	fi
+	export KUSTOMIZE="$(KUSTOMIZE)"; \
+	./scripts/install_with_secure_boot.sh --follow-logs
 
-install-secure-boot-with-keys: ## Install with existing secure boot keys (add 'wait' to follow logs)
+install-secure-boot-with-keys: kustomize ## Install with existing secure boot keys and log monitoring
 	@$(call check_required_env,PRIVATE_KEY_FILE PUBLIC_CERT_FILE VASTNFS_VERSION NAMESPACE)
-	@wait_arg=$(word 1, $(installargs)); \
-	export VASTNFS_VERSION="$(VASTNFS_VERSION)"; \
+	@export VASTNFS_VERSION="$(VASTNFS_VERSION)"; \
 	export KMM_IMG="$(KMM_IMG_REPO):$(KMM_IMG_TAG)"; \
 	export NAMESPACE="$(NAMESPACE)"; \
 	export KMM_PULL_SECRET="$(KMM_PULL_SECRET)"; \
 	export KUSTOMIZE_DIR="$(KUSTOMIZE_DIR)"; \
 	export PRIVATE_KEY_FILE="$(PRIVATE_KEY_FILE)"; \
 	export PUBLIC_CERT_FILE="$(PUBLIC_CERT_FILE)"; \
-	if [ "$$wait_arg" = "wait" ]; then \
-		./scripts/install_with_secure_boot.sh --keys "$(PRIVATE_KEY_FILE)" "$(PUBLIC_CERT_FILE)" --follow-logs; \
-	else \
-		./scripts/install_with_secure_boot.sh --keys "$(PRIVATE_KEY_FILE)" "$(PUBLIC_CERT_FILE)"; \
-	fi
+	export KUSTOMIZE="$(KUSTOMIZE)"; \
+	./scripts/install_with_secure_boot.sh --keys "$(PRIVATE_KEY_FILE)" "$(PUBLIC_CERT_FILE)" --follow-logs
 
 generate-secure-boot-keys: ## Generate secure boot keys for kernel module signing
 	@./scripts/generate_secure_boot_keys.sh

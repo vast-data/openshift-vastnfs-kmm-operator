@@ -69,12 +69,15 @@ install_vastnfs() {
     local temp_manifest="/tmp/vastnfs-install-$$.yaml"
     
     # Build and apply manifests
+    # Use KUSTOMIZE env var if set, otherwise fall back to 'kustomize' command
+    local kustomize_cmd="${KUSTOMIZE:-kustomize}"
+    
     if [ -n "$KMM_PULL_SECRET" ]; then
         print_info "Using pull secret overlay: $KMM_PULL_SECRET"
-        kustomize build "$kustomize_dir/../overlays/with-pull-secret" | envsubst '$VASTNFS_VERSION $KMM_IMG $NAMESPACE $KMM_PULL_SECRET' > "$temp_manifest"
+        "$kustomize_cmd" build "$kustomize_dir/../overlays/with-pull-secret" | envsubst '$VASTNFS_VERSION $KMM_IMG $NAMESPACE $KMM_PULL_SECRET' > "$temp_manifest"
     else
         print_info "No pull secret specified, using base configuration"
-        kustomize build "$kustomize_dir" | envsubst '$VASTNFS_VERSION $KMM_IMG $NAMESPACE' > "$temp_manifest"
+        "$kustomize_cmd" build "$kustomize_dir" | envsubst '$VASTNFS_VERSION $KMM_IMG $NAMESPACE' > "$temp_manifest"
     fi
     
     # Apply the manifests
@@ -234,12 +237,6 @@ main() {
     
     check_prerequisites
     check_openshift_login
-    
-    # Check required tools
-    if ! command -v kustomize >/dev/null 2>&1; then
-        print_error "kustomize command not found"
-        exit 1
-    fi
     
     # Set default KMM_IMG if not provided
     if [ -z "$KMM_IMG" ]; then
