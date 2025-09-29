@@ -104,9 +104,16 @@ check_prerequisites() {
         failed=1
     fi
     
-    # Check kustomize
-    if ! check_command "kustomize" "Please install kustomize or run: make install-kustomize"; then
-        failed=1
+    # Check kustomize - use KUSTOMIZE env var if set, otherwise check PATH
+    if [[ -n "$KUSTOMIZE" ]]; then
+        if [[ ! -x "$KUSTOMIZE" ]]; then
+            print_error "kustomize not found at: $KUSTOMIZE"
+            failed=1
+        fi
+    else
+        if ! check_command "kustomize" "Please install kustomize or run: make install-kustomize"; then
+            failed=1
+        fi
     fi
     
     # Check envsubst

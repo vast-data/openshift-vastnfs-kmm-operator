@@ -44,14 +44,11 @@ If KMM operator is not installed:
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd openshift-vastnfs-config
+git clone https://github.com/vast-data/openshift-vastnfs-kmm-operator
+cd openshift-vastnfs-kmm-operator
 
-# Install VAST NFS KMM
+# Install VAST NFS KMM (includes real-time log monitoring)
 make install
-
-# Install with real-time log monitoring
-make install wait
 
 # Verify deployment
 make verify
@@ -64,31 +61,24 @@ make uninstall
 
 ### 1. Standard Installation
 
-**Basic installation:**
+**Installation with real-time log monitoring:**
 ```bash
 make install
-```
-
-**With log monitoring:**
-```bash
-make install wait
 ```
 
 
 ### 2. Secure Boot Installation
 
-**Generate keys and install:**
+**Generate keys and install (includes log monitoring):**
 ```bash
 make install-secure-boot
-make install-secure-boot wait  # With log monitoring
 ```
 
-**Using existing keys:**
+**Using existing keys (includes log monitoring):**
 ```bash
 export PRIVATE_KEY_FILE=/path/to/private.key
 export PUBLIC_CERT_FILE=/path/to/public.crt
 make install-secure-boot-with-keys
-make install-secure-boot-with-keys wait  # With log monitoring
 ```
 
 
@@ -129,9 +119,9 @@ This approach allows you to:
 
 | Target | Description |
 |--------|-------------|
-| `make install` | Standard installation (add `wait` to follow logs) |
-| `make install-secure-boot` | Secure boot installation (add `wait` to follow logs) |
-| `make install-secure-boot-with-keys` | Secure boot with existing keys (add `wait` to follow logs) |
+| `make install` | Standard installation with real-time log monitoring |
+| `make install-secure-boot` | Secure boot installation with real-time log monitoring |
+| `make install-secure-boot-with-keys` | Secure boot with existing keys and real-time log monitoring |
 | `make uninstall` | Clean removal |
 | `make verify` | Deployment verification |
 | `make build-installer` | Generate consolidated manifest in `dist/install.yaml` |
@@ -139,7 +129,7 @@ This approach allows you to:
 
 ### Log Monitoring
 
-When using the `wait` option, the installation will:
+All installation commands now include real-time log monitoring by default. The installation will:
 
 1. **Install resources** - Deploy all KMM components
 2. **Wait for pods** - Monitor pod creation (up to 60 seconds)
@@ -274,13 +264,13 @@ make generate-secure-boot-keys
 
 ### Installation with Secure Boot
 ```bash
-# Method 1: Auto-generate keys
-make install-secure-boot wait
+# Method 1: Auto-generate keys (includes log monitoring)
+make install-secure-boot
 
-# Method 2: Use existing keys
+# Method 2: Use existing keys (includes log monitoring)
 export PRIVATE_KEY_FILE=/path/to/signing.key
 export PUBLIC_CERT_FILE=/path/to/signing.crt
-make install-secure-boot-with-keys wait
+make install-secure-boot-with-keys
 ```
 
 ### Verification

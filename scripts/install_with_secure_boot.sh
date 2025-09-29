@@ -118,12 +118,15 @@ deploy_vastnfs() {
     fi
 
     print_info "Building manifests with kustomize..."
+    # Use KUSTOMIZE env var if set, otherwise fall back to 'kustomize' command
+    local kustomize_cmd="${KUSTOMIZE:-kustomize}"
+    
     if [ -n "$KMM_PULL_SECRET" ]; then
         print_info "Using pull secret overlay: $KMM_PULL_SECRET"
-        kustomize build "${KUSTOMIZE_DIR}/../overlays/with-pull-secret" | envsubst '$NAMESPACE $VASTNFS_VERSION $KMM_IMG $KMM_PULL_SECRET $SIGNING_KEY_SECRET $SIGNING_CERT_SECRET $IMAGE_REPO_SECRET' > "$temp_manifest"
+        "$kustomize_cmd" build "${KUSTOMIZE_DIR}/../overlays/with-pull-secret" | envsubst '$NAMESPACE $VASTNFS_VERSION $KMM_IMG $KMM_PULL_SECRET $SIGNING_KEY_SECRET $SIGNING_CERT_SECRET $IMAGE_REPO_SECRET' > "$temp_manifest"
     else
         print_info "No pull secret specified, using base configuration"
-        kustomize build "${KUSTOMIZE_DIR}" | envsubst '$NAMESPACE $VASTNFS_VERSION $KMM_IMG $SIGNING_KEY_SECRET $SIGNING_CERT_SECRET $IMAGE_REPO_SECRET' > "$temp_manifest"
+        "$kustomize_cmd" build "${KUSTOMIZE_DIR}" | envsubst '$NAMESPACE $VASTNFS_VERSION $KMM_IMG $SIGNING_KEY_SECRET $SIGNING_CERT_SECRET $IMAGE_REPO_SECRET' > "$temp_manifest"
     fi
     
     print_info "Applying to cluster..."
