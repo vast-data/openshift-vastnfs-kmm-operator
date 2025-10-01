@@ -65,12 +65,22 @@ cd openshift-vastnfs-kmm-operator
 # Install VAST NFS KMM (includes real-time log monitoring)
 make install
 
-# Verify deployment
+# Wait for deployment to complete (see timing note below)
+# then verify deployment
 make verify
 
 # Uninstall
 make uninstall
 ```
+
+**Important Timing Note:** After `make install` completes the build stage, please wait approximately 1-2 minutes before running `make verify`. This allows time for:
+
+- The built kernel module image to be distributed to all nodes
+- DaemonSet pods to start on each node
+- The `modprobe` operation to load the VAST NFS kernel modules
+- All components to reach a ready state
+
+Running `make verify` too early may show incomplete deployment status.
 
 ## Installation Methods
 
@@ -79,6 +89,9 @@ make uninstall
 **Installation with real-time log monitoring:**
 ```bash
 make install
+
+# Wait 1-2 minutes for DaemonSet deployment, then verify
+make verify
 ```
 
 
@@ -87,6 +100,9 @@ make install
 **Generate keys and install (includes log monitoring):**
 ```bash
 make install-secure-boot
+
+# Wait 2-3 minutes for secure boot signing and DaemonSet deployment, then verify
+make verify
 ```
 
 **Using existing keys (includes log monitoring):**
@@ -94,6 +110,9 @@ make install-secure-boot
 export PRIVATE_KEY_FILE=/path/to/private.key
 export PUBLIC_CERT_FILE=/path/to/public.crt
 make install-secure-boot-with-keys
+
+# Wait 2-3 minutes for secure boot signing and DaemonSet deployment, then verify
+make verify
 ```
 
 
@@ -152,6 +171,15 @@ All installation commands now include real-time log monitoring by default. The i
 4. **Stream logs** - Follow real-time logs with retry logic
 5. **Continue until interrupted** - Press `Ctrl+C` to stop
 
+**Post-Build Deployment Process:** After the build stage completes and you interrupt the log streaming:
+
+1. **Image Distribution** - The built kernel module image is pushed to the internal registry
+2. **DaemonSet Creation** - KMM creates DaemonSet pods on nodes matching the kernel version
+3. **Module Loading** - Each node downloads the image and runs `modprobe` to load VAST NFS modules
+4. **Ready State** - Modules become active and available for NFS operations
+
+This post-build process typically takes 1-2 minutes (2-3 minutes for secure boot scenarios).
+
 **Example output:**
 ```
 [STEP] Waiting for pods to start...
@@ -191,6 +219,8 @@ oc debug node/<node-name> -- chroot /host lsmod | grep -E "(sunrpc|rpcrdma|nfs)"
 
 
 ## Troubleshooting
+
+For comprehensive VAST NFS driver troubleshooting and advanced configuration, refer to the [official VAST NFS documentation](https://vastnfs.vastdata.com/docs/4.0/Intro.html).
 
 ### Common Issues
 
