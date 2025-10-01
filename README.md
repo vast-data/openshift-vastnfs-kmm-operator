@@ -1,6 +1,8 @@
-# VAST NFS KMM (Kernel Module Management) for OpenShift
+# VAST NFS KMM Operator for OpenShift
 
-This repository provides automated deployment of VAST NFS kernel modules on OpenShift using the Kernel Module Management (KMM) operator.
+This repository provides automated deployment and management of **VAST NFS kernel modules** on OpenShift clusters using the Kernel Module Management (KMM) operator.
+
+VAST NFS is a high-performance NFS implementation that this operator installs and manages across your OpenShift nodes.
 
 ## Table of Contents
 
@@ -14,18 +16,21 @@ This repository provides automated deployment of VAST NFS kernel modules on Open
 
 ## Overview
 
-VAST NFS KMM enables automatic deployment and management of VAST NFS kernel modules across OpenShift clusters using the Kernel Module Management (KMM) operator.
+This KMM (Kernel Module Management) operator enables automatic deployment and management of **VAST NFS kernel modules** across OpenShift clusters. 
 
-### About VAST NFS Driver
+**VAST NFS** is a high-performance NFS implementation that provides a modified version of the Linux NFS client and server kernel code stacks. It contains backported upstream NFS stack code from Linux v5.15.x LTS kernel branch, allowing older kernels to receive the full functionality of newer NFS stack code.
 
-The **VAST NFS package** provides a modified version of the Linux NFS client and server kernel code stacks, containing backported upstream NFS stack code from **Linux v5.15.x LTS** kernel branch. This allows older kernels to receive the full functionality of newer NFS stack code with enhanced features including:
+For complete VAST NFS documentation, refer to the [official VAST NFS documentation](https://vastnfs.vastdata.com/docs/4.0/Intro.html).
 
-- **NFS stack improvements and fixes**
-- **Multipath support for NFSv3 and NFSv4.1**
-- **Nvidia GDS integration**
-- **Support for kernels 4.15.x and above**
+### VAST NFS Features
 
-For complete VAST NFS driver documentation, see: [VAST NFS Documentation](https://vastnfs.vastdata.com/docs/4.0/Intro.html)
+VAST NFS provides enhanced NFS capabilities including:
+
+- **NFS stack improvements and fixes** from Linux v5.15.x LTS
+- **Multipath support** for NFSv3 and NFSv4.1
+- **Nvidia GDS integration** for high-performance workloads
+- **Kernel compatibility** for kernels 4.15.x and above
+- **Performance optimizations** for enterprise workloads
 
 ### KMM Operator Features
 
@@ -62,7 +67,7 @@ If KMM operator is not installed:
 git clone https://github.com/vast-data/openshift-vastnfs-kmm-operator
 cd openshift-vastnfs-kmm-operator
 
-# Install VAST NFS KMM (includes real-time log monitoring)
+# Install VAST NFS kernel modules (includes real-time log monitoring)
 make install
 
 # Wait for deployment to complete (see timing note below)
