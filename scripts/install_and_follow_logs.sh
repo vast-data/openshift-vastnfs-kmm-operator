@@ -261,7 +261,25 @@ main() {
         fi
     fi
     
-    print_success "✅ VAST NFS KMM installation completed"
+    print_success "VAST NFS KMM installation completed"
+    
+    echo ""
+    print_info "Next Steps:"
+    print_info "1. The kernel modules are now being built and deployed to cluster nodes"
+    print_info "2. After the build completes, DaemonSet pods will start on each node"
+    print_info "3. Each node will then load the VAST NFS kernel modules (modprobe)"
+    print_info ""
+    print_warning "IMPORTANT: Wait approximately 1-2 minutes before running verification"
+    print_info "   This allows time for:"
+    print_info "   - Module compilation to complete"
+    print_info "   - DaemonSet pods to start on all nodes"  
+    print_info "   - Kernel modules to be loaded via modprobe"
+    print_info ""
+    print_info "To verify installation:"
+    print_info "   make verify"
+    print_info ""
+    print_info "For VAST NFS driver documentation:"
+    print_info "   https://vastnfs.vastdata.com/docs/4.0/Intro.html"
 }
 
 # Run main function

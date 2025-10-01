@@ -14,10 +14,25 @@ This repository provides automated deployment of VAST NFS kernel modules on Open
 
 ## Overview
 
-VAST NFS KMM enables automatic deployment and management of VAST NFS kernel modules across OpenShift clusters. It supports:
+VAST NFS KMM enables automatic deployment and management of VAST NFS kernel modules across OpenShift clusters using the Kernel Module Management (KMM) operator.
+
+### About VAST NFS Driver
+
+The **VAST NFS package** provides a modified version of the Linux NFS client and server kernel code stacks, containing backported upstream NFS stack code from **Linux v5.15.x LTS** kernel branch. This allows older kernels to receive the full functionality of newer NFS stack code with enhanced features including:
+
+- **NFS stack improvements and fixes**
+- **Multipath support for NFSv3 and NFSv4.1**
+- **Nvidia GDS integration**
+- **Support for kernels 4.15.x and above**
+
+For complete VAST NFS driver documentation, see: [VAST NFS Documentation](https://vastnfs.vastdata.com/docs/4.0/Intro.html)
+
+### KMM Operator Features
+
+This KMM operator handles the automated installation and management of the VAST NFS driver, providing:
 
 - **Automatic kernel module building and loading**
-- **Multi-node deployment**
+- **Multi-node deployment via DaemonSet**
 - **Secure boot environments**
 - **Comprehensive verification**
 - **Clean uninstallation**
@@ -150,6 +165,13 @@ All installation commands now include real-time log monitoring by default. The i
 
 ## Verification
 
+> **IMPORTANT:** After running `make install`, wait approximately **1-2 minutes** before verification. This allows time for:
+> - Kernel module compilation to complete
+> - DaemonSet pods to start on all cluster nodes  
+> - VAST NFS kernel modules to be loaded via modprobe
+>
+> For secure boot installations, allow **2-3 minutes** due to additional signing time.
+
 ### Automatic Verification
 ```bash
 make verify
@@ -222,6 +244,18 @@ oc get events -n vastnfs-kmm --sort-by='.lastTimestamp'
 oc get nodes
 oc describe node <node-name>
 ```
+
+## Additional Resources
+
+### VAST NFS Driver Documentation
+For comprehensive information about the VAST NFS driver features, configuration, and troubleshooting, see the official documentation: [VAST NFS Documentation](https://vastnfs.vastdata.com/docs/4.0/Intro.html)
+
+The documentation includes:
+- **Installation methods** for different Linux distributions
+- **Configuration options** including multipath setup
+- **Usage examples** and mount parameters  
+- **Monitoring and diagnosis** tools
+- **Troubleshooting guides** for common issues
 
 ## Configuration
 
