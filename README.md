@@ -1,6 +1,8 @@
-# VAST NFS KMM (Kernel Module Management) for OpenShift
+# VAST NFS KMM Operator for OpenShift
 
-This repository provides automated deployment of VAST NFS kernel modules on OpenShift using the Kernel Module Management (KMM) operator.
+This repository provides automated deployment and management of **VAST NFS kernel modules** on OpenShift clusters using the Kernel Module Management (KMM) operator.
+
+VAST NFS is a high-performance NFS implementation that this operator installs and manages across your OpenShift nodes.
 
 ## Table of Contents
 
@@ -14,18 +16,21 @@ This repository provides automated deployment of VAST NFS kernel modules on Open
 
 ## Overview
 
-VAST NFS KMM enables automatic deployment and management of VAST NFS kernel modules across OpenShift clusters using the Kernel Module Management (KMM) operator.
+This KMM (Kernel Module Management) operator enables automatic deployment and management of **VAST NFS kernel modules** across OpenShift clusters. 
 
-### About VAST NFS Driver
+**VAST NFS** is a high-performance NFS implementation that provides a modified version of the Linux NFS client and server kernel code stacks. It contains backported upstream NFS stack code from Linux v5.15.x LTS kernel branch, allowing older kernels to receive the full functionality of newer NFS stack code.
 
-The **VAST NFS package** provides a modified version of the Linux NFS client and server kernel code stacks, containing backported upstream NFS stack code from **Linux v5.15.x LTS** kernel branch. This allows older kernels to receive the full functionality of newer NFS stack code with enhanced features including:
+For complete VAST NFS documentation, refer to the [official VAST NFS documentation](https://vastnfs.vastdata.com/docs/4.0/Intro.html).
 
-- **NFS stack improvements and fixes**
-- **Multipath support for NFSv3 and NFSv4.1**
-- **Nvidia GDS integration**
-- **Support for kernels 4.15.x and above**
+### VAST NFS Features
 
-For complete VAST NFS driver documentation, see: [VAST NFS Documentation](https://vastnfs.vastdata.com/docs/4.0/Intro.html)
+VAST NFS provides enhanced NFS capabilities including:
+
+- **NFS stack improvements and fixes** from Linux v5.15.x LTS
+- **Multipath support** for NFSv3 and NFSv4.1
+- **Nvidia GDS integration** for high-performance workloads
+- **Kernel compatibility** for kernels 4.15.x and above
+- **Performance optimizations** for enterprise workloads
 
 ### KMM Operator Features
 
@@ -62,15 +67,25 @@ If KMM operator is not installed:
 git clone https://github.com/vast-data/openshift-vastnfs-kmm-operator
 cd openshift-vastnfs-kmm-operator
 
-# Install VAST NFS KMM (includes real-time log monitoring)
+# Install VAST NFS kernel modules (includes real-time log monitoring)
 make install
 
-# Verify deployment
+# Wait for deployment to complete (see timing note below)
+# then verify deployment
 make verify
 
 # Uninstall
 make uninstall
 ```
+
+**Important Timing Note:** After `make install` completes the build stage, please wait approximately 1-2 minutes before running `make verify`. This allows time for:
+
+- The built kernel module image to be distributed to all nodes
+- DaemonSet pods to start on each node
+- The `modprobe` operation to load the VAST NFS kernel modules
+- All components to reach a ready state
+
+Running `make verify` too early may show incomplete deployment status.
 
 ## Installation Methods
 
@@ -79,6 +94,9 @@ make uninstall
 **Installation with real-time log monitoring:**
 ```bash
 make install
+
+# Wait 1-2 minutes for DaemonSet deployment, then verify
+make verify
 ```
 
 
@@ -87,6 +105,9 @@ make install
 **Generate keys and install (includes log monitoring):**
 ```bash
 make install-secure-boot
+
+# Wait 2-3 minutes for secure boot signing and DaemonSet deployment, then verify
+make verify
 ```
 
 **Using existing keys (includes log monitoring):**
@@ -94,6 +115,9 @@ make install-secure-boot
 export PRIVATE_KEY_FILE=/path/to/private.key
 export PUBLIC_CERT_FILE=/path/to/public.crt
 make install-secure-boot-with-keys
+
+# Wait 2-3 minutes for secure boot signing and DaemonSet deployment, then verify
+make verify
 ```
 
 
@@ -152,6 +176,15 @@ All installation commands now include real-time log monitoring by default. The i
 4. **Stream logs** - Follow real-time logs with retry logic
 5. **Continue until interrupted** - Press `Ctrl+C` to stop
 
+**Post-Build Deployment Process:** After the build stage completes and you interrupt the log streaming:
+
+1. **Image Distribution** - The built kernel module image is pushed to the internal registry
+2. **DaemonSet Creation** - KMM creates DaemonSet pods on nodes matching the kernel version
+3. **Module Loading** - Each node downloads the image and runs `modprobe` to load VAST NFS modules
+4. **Ready State** - Modules become active and available for NFS operations
+
+This post-build process typically takes 1-2 minutes (2-3 minutes for secure boot scenarios).
+
 **Example output:**
 ```
 [STEP] Waiting for pods to start...
@@ -191,6 +224,8 @@ oc debug node/<node-name> -- chroot /host lsmod | grep -E "(sunrpc|rpcrdma|nfs)"
 
 
 ## Troubleshooting
+
+For comprehensive VAST NFS driver troubleshooting and advanced configuration, refer to the [official VAST NFS documentation](https://vastnfs.vastdata.com/docs/4.0/Intro.html).
 
 ### Common Issues
 
