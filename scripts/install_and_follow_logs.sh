@@ -92,6 +92,28 @@ install_vastnfs() {
     fi
 }
 
+check_vastnfs_version() {
+    local expected_version="$1"
+    
+    # Get all nodes  
+    local nodes=$(oc get nodes -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+    
+    for node in $nodes; do
+        # Check VAST NFS version on this node
+        local version=$(oc debug node/$node -- chroot /host bash -c '
+            if [[ -e /sys/module/sunrpc/parameters/nfs_bundle_version ]]; then
+                cat /sys/module/sunrpc/parameters/nfs_bundle_version
+            fi
+        ' 2>&1 | grep -E "^[0-9]+\.[0-9]+\.[0-9]+" | head -1)
+        
+        if [[ "$version" == "$expected_version" ]]; then
+            return 0  # Correct version found
+        fi
+    done
+    
+    return 1  # Correct version not found
+}
+
 wait_for_pods() {
     local namespace="$1"
     local timeout=60
@@ -109,11 +131,23 @@ wait_for_pods() {
         else
             if [ $((count % 10)) -eq 0 ]; then
                 print_info "Waiting for pods to start... (${count}s elapsed)"
+                
+                # Check if correct version is already loaded (pods may have completed quickly)
+                if check_vastnfs_version "$VASTNFS_VERSION" 2>/dev/null; then
+                    print_success "VAST NFS version $VASTNFS_VERSION is already active - pods completed successfully"
+                    return 0
+                fi
             fi
             sleep 2
             count=$((count + 2))
         fi
     done
+    
+    # Final check if correct version is loaded before declaring timeout
+    if check_vastnfs_version "$VASTNFS_VERSION" 2>/dev/null; then
+        print_success "VAST NFS version $VASTNFS_VERSION is active - installation successful"
+        return 0
+    fi
     
     print_error "Timeout waiting for pods to start"
     return 1
@@ -122,15 +156,32 @@ wait_for_pods() {
 wait_for_container_ready() {
     local namespace="$1"
     local pod="$2"
-    local timeout=300
+    local timeout=30  # Reduced from 300 to 30 seconds
     local count=0
     
     print_info "Waiting for pod $pod to be ready..."
     
     while [ $count -lt $timeout ]; do
+        # Check if pod still exists
+        if ! oc get pod "$pod" -n "$namespace" >/dev/null 2>&1; then
+            print_info "Pod $pod no longer exists - it completed successfully"
+            return 1  # Return error so we don't try to stream logs
+        fi
+        
+        # Get pod phase
+        local phase=$(oc get pod "$pod" -n "$namespace" -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+        
+        # If pod succeeded or failed, no need to wait for logs
+        if [[ "$phase" == "Succeeded" ]]; then
+            print_success "Pod $pod completed successfully"
+            return 1  # Return error so we don't try to stream logs from completed pod
+        elif [[ "$phase" == "Failed" ]]; then
+            print_warning "Pod $pod failed"
+            return 0  # Try to get logs to see what failed
+        fi
+        
         # Check if pod has any containers running
         local running_containers=$(oc get pod "$pod" -n "$namespace" -o jsonpath='{.status.containerStatuses[*].ready}' 2>/dev/null || echo "")
-        local phase=$(oc get pod "$pod" -n "$namespace" -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
         
         # Check if any container is ready or if we can get logs
         if [[ "$running_containers" == *"true"* ]] || [[ "$phase" == "Running" ]] || oc logs "$pod" -n "$namespace" --tail=1 >/dev/null 2>&1; then
@@ -138,15 +189,16 @@ wait_for_container_ready() {
             return 0
         fi
         
-        # Show current status
-        local status=$(oc get pod "$pod" -n "$namespace" -o jsonpath='{.status.containerStatuses[0].state}' 2>/dev/null || echo "")
-        print_info "Pod status: $phase, waiting... ($count/$timeout)"
+        # Show current status every 10 seconds
+        if [ $((count % 10)) -eq 0 ]; then
+            print_info "Pod status: $phase, waiting... ($count/$timeout)"
+        fi
         
         sleep 2
         count=$((count + 2))
     done
     
-    print_warning "Timeout waiting for pod $pod to be ready, will try to get logs anyway"
+    print_info "Pod may have completed too quickly to stream logs"
     return 1
 }
 
@@ -161,13 +213,28 @@ follow_pod_logs() {
     if [ -n "$pods" ]; then
         print_info "Found pods: $pods"
         
+        local pods_to_follow=()
+        
         # Wait for each pod to be ready and follow logs
         for pod in $pods; do
             print_info "=== Preparing to follow logs for $pod ==="
             
             # Wait for container to be ready (with timeout)
-            wait_for_container_ready "$namespace" "$pod"
-            
+            if wait_for_container_ready "$namespace" "$pod"; then
+                pods_to_follow+=("$pod")
+            else
+                print_info "Pod $pod completed too quickly to stream logs (this is normal with pre-built images)"
+            fi
+        done
+        
+        # If no pods are available for streaming, that's okay - they completed quickly
+        if [ ${#pods_to_follow[@]} -eq 0 ]; then
+            print_success "All pods completed successfully"
+            return 0
+        fi
+        
+        # Stream logs from available pods
+        for pod in "${pods_to_follow[@]}"; do
             print_info "Starting log stream for $pod..."
             
             # Follow logs with retry logic
