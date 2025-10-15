@@ -9,7 +9,7 @@ KUSTOMIZE_DIR ?= k8s/base
 
 # KMM Image Configuration
 KMM_IMG_REPO ?= image-registry.openshift-image-registry.svc:5000/vastnfs-kmm/vastnfs
-KMM_IMG_TAG ?= \$${KERNEL_FULL_VERSION}
+KMM_IMG_TAG ?= \$${KERNEL_FULL_VERSION}-vastnfs-$(VASTNFS_VERSION)
 KMM_PULL_SECRET ?=
 
 ## Location to install dependencies to
@@ -118,6 +118,13 @@ build-installer: kustomize ## Generate a consolidated YAML with CRDs and deploym
 ######################
 install: create-namespace kustomize ## Install VAST NFS KMM on the cluster with log monitoring
 	@$(call check_required_env,VASTNFS_VERSION NAMESPACE)
+	@echo "Checking if VAST NFS is already loaded (for upgrade scenario)..."
+	@if ./scripts/check_vastnfs_loaded.sh 2>/dev/null; then \
+		echo "VAST NFS is already loaded - performing graceful unload before upgrade..."; \
+		$(MAKE) graceful-unload; \
+	else \
+		echo "VAST NFS not currently loaded - proceeding with fresh installation..."; \
+	fi
 	@export VASTNFS_VERSION="$(VASTNFS_VERSION)"; \
 	export KMM_IMG="$(KMM_IMG_REPO):$(KMM_IMG_TAG)"; \
 	export NAMESPACE="$(NAMESPACE)"; \
@@ -126,7 +133,11 @@ install: create-namespace kustomize ## Install VAST NFS KMM on the cluster with 
 	export KUSTOMIZE="$(KUSTOMIZE)"; \
 	./scripts/install_and_follow_logs.sh --follow-logs
 
-uninstall: ## Remove VAST NFS KMM from the cluster (handles finalizers)
+graceful-unload:
+	@echo "=== Gracefully Unloading VAST NFS Modules ==="
+	@./scripts/graceful_unload.sh
+
+uninstall: graceful-unload ## Remove VAST NFS KMM from the cluster (handles finalizers)
 	@echo "Uninstalling VAST NFS KMM from namespace $(NAMESPACE)..."
 	@echo "Stopping any active builds (aggressive cleanup)..."
 	@echo "Patching build finalizers..."

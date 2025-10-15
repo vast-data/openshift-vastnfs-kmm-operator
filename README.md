@@ -74,7 +74,11 @@ make install
 # then verify deployment
 make verify
 
-# Uninstall
+# Upgrade to a new version (automatic graceful handling)
+export VASTNFS_VERSION=4.0.36
+make install
+
+# Uninstall (automatic graceful cleanup)
 make uninstall
 ```
 
@@ -152,16 +156,70 @@ This approach allows you to:
 - Integrate with CI/CD pipelines
 
 
+## Upgrading VAST NFS Version
+
+Upgrading is fully automatic! Simply run `make install` with the new version:
+
+```bash
+# Upgrade to a new version (automatic graceful unload if already installed)
+export VASTNFS_VERSION=4.0.36
+make install
+
+# Wait 1-2 minutes for rebuild and deployment, then verify
+make verify
+```
+
+### How Upgrades Work
+
+- `make install` automatically detects if VAST NFS is already loaded
+- If loaded (upgrade scenario): automatically performs graceful unload first
+- If not loaded (fresh install): proceeds directly with installation
+- Graceful unload unmounts NFS filesystems, stops services, and cleanly unloads modules
+- This prevents "module in use" errors during upgrades
+
+The operator includes the VAST NFS version in the container image tag:
+```
+image-registry.openshift-image-registry.svc:5000/vastnfs-kmm/vastnfs:${KERNEL_FULL_VERSION}-vastnfs-${VASTNFS_VERSION}
+```
+
+For example:
+- **Version 4.0.35**: `5.14.0-570.33.1.el9_6.x86_64-vastnfs-4.0.35`
+- **Version 4.0.36**: `5.14.0-570.33.1.el9_6.x86_64-vastnfs-4.0.36`
+
+This ensures that:
+1. KMM detects the version change and triggers a rebuild
+2. A new container image is built with the updated VAST NFS version
+3. KMM rolls out the new modules to all matching nodes
+4. The old modules are unloaded and new ones loaded automatically
+
+### Uninstallation
+
+Execute the following command to uninstall VAST NFS:
+
+```bash
+make uninstall
+```
+
+The `uninstall` target automatically:
+- Gracefully unloads VAST NFS modules from all nodes
+- Unmounts all NFS filesystems
+- Stops RPC services cleanly
+- Unloads kernel modules in the correct order
+- Removes all KMM resources (Module, ConfigMaps, ServiceAccounts, etc.)
+- Cleans up ImageStreams
+
+No manual steps required!
+
 ## Usage
 
 ### Available Make Targets
 
 | Target | Description |
 |--------|-------------|
-| `make install` | Standard installation with real-time log monitoring |
+| `make install` | Install or upgrade VAST NFS (auto-detects and handles graceful unload) |
 | `make install-secure-boot` | Secure boot installation with real-time log monitoring |
 | `make install-secure-boot-with-keys` | Secure boot with existing keys and real-time log monitoring |
-| `make uninstall` | Clean removal |
+| `make uninstall` | Complete removal (automatically performs graceful unload first) |
 | `make verify` | Deployment verification |
 | `make build-installer` | Generate consolidated manifest in `dist/install.yaml` |
 | `make help` | Show all targets |
