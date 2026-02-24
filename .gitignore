@@ -53,3 +53,5 @@ test-*
 # venvs
 venv/
 /keys/
+
+nodes-rollout.txt

@@ -192,6 +192,38 @@ This ensures that:
 3. KMM rolls out the new modules to all matching nodes
 4. The old modules are unloaded and new ones loaded automatically
 
+### Optional Automated Rolling Upgrade (Admin Controlled)
+
+You can enable an admin-controlled node-by-node workflow that lets you:
+- generate an editable node order file,
+- reorder/remove nodes before rollout,
+- cordon/drain/cleanup/uncordon one node at a time,
+- wait a configurable duration between nodes.
+
+```bash
+# 1) Generate editable rollout file
+make generate-node-rollout-plan
+
+# 2) Edit the node order (and optionally remove nodes)
+vi nodes-rollout.txt
+
+# 3) Build/apply new version and run automated rolling in one flow
+export VASTNFS_VERSION=4.0.39
+export VASTNFS_AUTOMATED_ROLLING=true
+export VASTNFS_INTER_NODE_WAIT_SECONDS=300
+make install
+```
+
+You can also run the node-by-node stage directly (orchestration only):
+```bash
+export VASTNFS_AUTOMATED_ROLLING=true
+export VASTNFS_INTER_NODE_WAIT_SECONDS=300
+make rolling-upgrade
+```
+
+> **Important:** `make rolling-upgrade` does **not** build or apply a new VAST NFS version.
+> Use `make install` when changing `VASTNFS_VERSION` so KMM rebuilds/applies the new module image first.
+
 ### Uninstallation
 
 Execute the following command to uninstall VAST NFS:
@@ -216,7 +248,9 @@ No manual steps required!
 
 | Target | Description |
 |--------|-------------|
-| `make install` | Install or upgrade VAST NFS (auto-detects and handles graceful unload) |
+| `make install` | Build/apply VAST NFS install or upgrade (and run rolling flow if automation is enabled) |
+| `make generate-node-rollout-plan` | Generate editable ordered node list for automation |
+| `make rolling-upgrade` | Execute node-by-node orchestration only (does not build/apply new version) |
 | `make install-secure-boot` | Secure boot installation with real-time log monitoring |
 | `make install-secure-boot-with-keys` | Secure boot with existing keys and real-time log monitoring |
 | `make uninstall` | Complete removal (automatically performs graceful unload first) |
@@ -364,6 +398,9 @@ All variables have sensible defaults. Override only if needed.
 | `KMM_IMG_TAG` | `${KERNEL_FULL_VERSION}` | Container image tag |
 | `KMM_PULL_SECRET` | Empty | Optional pull secret for private registries |
 | `KUSTOMIZE_DIR` | `k8s/base` | Kustomization directory |
+| `VASTNFS_AUTOMATED_ROLLING` | `false` | Enable node-by-node automation gate (`true`/`1`) |
+| `VASTNFS_INTER_NODE_WAIT_SECONDS` | `300` | Wait in seconds between node rollout operations |
+| `VASTNFS_NODE_PLAN_FILE` | `nodes-rollout.txt` | Editable node order list consumed by rolling flow |
 
 ### Customization
 
