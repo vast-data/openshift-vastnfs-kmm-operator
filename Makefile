@@ -6,6 +6,9 @@ CURRENT_TARGET := $(firstword $(MAKECMDGOALS))
 VASTNFS_VERSION ?= 4.0.35
 NAMESPACE ?= vastnfs-kmm
 KUSTOMIZE_DIR ?= k8s/base
+VASTNFS_AUTOMATED_ROLLING ?= false
+VASTNFS_INTER_NODE_WAIT_SECONDS ?= 300
+VASTNFS_NODE_PLAN_FILE ?= nodes-rollout.txt
 
 # KMM Image Configuration
 KMM_IMG_REPO ?= image-registry.openshift-image-registry.svc:5000/vastnfs-kmm/vastnfs
@@ -118,24 +121,47 @@ build-installer: kustomize ## Generate a consolidated YAML with CRDs and deploym
 ######################
 install: create-namespace kustomize ## Install VAST NFS KMM on the cluster with log monitoring
 	@$(call check_required_env,VASTNFS_VERSION NAMESPACE)
-	@echo "Checking if VAST NFS is already loaded (for upgrade scenario)..."
-	@if ./scripts/check_vastnfs_loaded.sh 2>/dev/null; then \
-		echo "VAST NFS is already loaded - performing graceful unload before upgrade..."; \
-		$(MAKE) graceful-unload; \
+	@if [ "$(VASTNFS_AUTOMATED_ROLLING)" = "true" ] || [ "$(VASTNFS_AUTOMATED_ROLLING)" = "1" ]; then \
+		echo "Automated rolling mode enabled - skipping global graceful unload (handled per node)"; \
 	else \
-		echo "VAST NFS not currently loaded - proceeding with fresh installation..."; \
+		echo "Checking if VAST NFS is already loaded (for upgrade scenario)..."; \
+		if ./scripts/check_vastnfs_loaded.sh 2>/dev/null; then \
+			echo "VAST NFS is already loaded - performing graceful unload before upgrade..."; \
+			$(MAKE) graceful-unload; \
+		else \
+			echo "VAST NFS not currently loaded - proceeding with fresh installation..."; \
+		fi; \
 	fi
 	@export VASTNFS_VERSION="$(VASTNFS_VERSION)"; \
 	export KMM_IMG="$(KMM_IMG_REPO):$(KMM_IMG_TAG)"; \
 	export NAMESPACE="$(NAMESPACE)"; \
 	export KMM_PULL_SECRET="$(KMM_PULL_SECRET)"; \
 	export KUSTOMIZE_DIR="$(KUSTOMIZE_DIR)"; \
+	export VASTNFS_AUTOMATED_ROLLING="$(VASTNFS_AUTOMATED_ROLLING)"; \
+	export VASTNFS_INTER_NODE_WAIT_SECONDS="$(VASTNFS_INTER_NODE_WAIT_SECONDS)"; \
+	export VASTNFS_NODE_PLAN_FILE="$(VASTNFS_NODE_PLAN_FILE)"; \
 	export KUSTOMIZE="$(KUSTOMIZE)"; \
-	./scripts/install_and_follow_logs.sh --follow-logs
+	./scripts/install_and_follow_logs.sh --follow-logs; \
+	if [ "$$VASTNFS_AUTOMATED_ROLLING" = "true" ] || [ "$$VASTNFS_AUTOMATED_ROLLING" = "1" ]; then \
+		echo "Automated rolling mode enabled - starting node-by-node rollout..."; \
+		./scripts/rolling_upgrade.sh --plan "$$VASTNFS_NODE_PLAN_FILE"; \
+	fi
 
 graceful-unload:
 	@echo "=== Gracefully Unloading VAST NFS Modules ==="
 	@./scripts/graceful_unload.sh
+
+generate-node-rollout-plan: ## Generate editable node list for rolling rollout
+	@export VASTNFS_NODE_PLAN_FILE="$(VASTNFS_NODE_PLAN_FILE)"; \
+	./scripts/generate_node_rollout_plan.sh --output "$(VASTNFS_NODE_PLAN_FILE)"
+
+rolling-upgrade: ## Run node-by-node rolling upgrade using node plan file
+	@export VASTNFS_AUTOMATED_ROLLING="$(VASTNFS_AUTOMATED_ROLLING)"; \
+	export VASTNFS_INTER_NODE_WAIT_SECONDS="$(VASTNFS_INTER_NODE_WAIT_SECONDS)"; \
+	export VASTNFS_NODE_PLAN_FILE="$(VASTNFS_NODE_PLAN_FILE)"; \
+	export VASTNFS_VERSION="$(VASTNFS_VERSION)"; \
+	export NAMESPACE="$(NAMESPACE)"; \
+	./scripts/rolling_upgrade.sh --plan "$(VASTNFS_NODE_PLAN_FILE)"
 
 uninstall: graceful-unload ## Remove VAST NFS KMM from the cluster (handles finalizers)
 	@echo "Uninstalling VAST NFS KMM from namespace $(NAMESPACE)..."

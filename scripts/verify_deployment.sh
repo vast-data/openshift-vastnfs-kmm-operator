@@ -12,6 +12,8 @@ source "$SCRIPT_DIR/common.sh"
 # Configuration
 NAMESPACE=${NAMESPACE:-$DEFAULT_NAMESPACE}
 MODULE_NAME=${MODULE_NAME:-vastnfs}
+TARGET_NODE=${TARGET_NODE:-}
+EXPECTED_VERSION=${EXPECTED_VERSION:-}
 
 show_help() {
     echo "Usage: $0 [OPTIONS]"
@@ -23,6 +25,8 @@ show_help() {
     echo "  -n, --namespace NAME          Kubernetes namespace (default: $DEFAULT_NAMESPACE)"
     echo "  -m, --module NAME             Module name (default: vastnfs)"
     echo "  -w, --wait SECONDS            Wait for module to be ready (default: no wait)"
+    echo "  --node NODE_NAME              Verify only one node"
+    echo "  --expected-version VERSION    Ensure node(s) run expected VAST NFS version"
     echo ""
     echo "Environment Variables:"
     echo "  NAMESPACE                     Kubernetes namespace"
@@ -56,7 +60,12 @@ check_module_status() {
 check_vast_nfs_active() {
     print_step "Verifying VAST NFS is Active on Nodes"
     
-    local nodes=$(oc get nodes -o jsonpath='{.items[*].metadata.name}')
+    local nodes
+    if [[ -n "$TARGET_NODE" ]]; then
+        nodes="$TARGET_NODE"
+    else
+        nodes=$(oc get nodes -o jsonpath='{.items[*].metadata.name}')
+    fi
     local active_count=0
     local total_count=0
     
@@ -97,7 +106,15 @@ check_vast_nfs_active() {
             print_warning "VAST NFS NOT ACTIVE - Using default kernel NFS"
         else
             print_success "VAST NFS ACTIVE - $version_check"
-            active_count=$((active_count + 1))
+            if [[ -n "$EXPECTED_VERSION" ]]; then
+                if [[ "$version_check" == *"version: ${EXPECTED_VERSION}"* ]]; then
+                    active_count=$((active_count + 1))
+                else
+                    print_warning "Version mismatch on $node, expected: $EXPECTED_VERSION"
+                fi
+            else
+                active_count=$((active_count + 1))
+            fi
         fi
     done
     
@@ -198,6 +215,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         -w|--wait)
             WAIT_TIMEOUT="$2"
+            shift 2
+            ;;
+        --node)
+            TARGET_NODE="$2"
+            shift 2
+            ;;
+        --expected-version)
+            EXPECTED_VERSION="$2"
             shift 2
             ;;
         *)
