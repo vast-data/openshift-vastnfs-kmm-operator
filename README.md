@@ -1,6 +1,8 @@
 # VAST NFS KMM Operator for OpenShift
 
-This repository provides automated deployment and management of **VAST NFS kernel modules** on OpenShift clusters using the Kernel Module Management (KMM) operator.
+Automated deployment and management of **VAST NFS kernel modules** on OpenShift using the Kernel Module Management (KMM) operator.
+
+Documentation: [VAST NFS Client Install / Upgrade Using KMM on OpenShift](https://kb.vastdata.com/docs/vast-nfs-client-install-upgrade-using-kmm-on-openshift)
 
 VAST NFS is a high-performance NFS implementation that this operator installs and manages across your OpenShift nodes.
 
